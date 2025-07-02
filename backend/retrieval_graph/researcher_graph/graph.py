@@ -16,6 +16,7 @@ from backend import retrieval
 from backend.retrieval_graph.configuration import AgentConfiguration
 from backend.retrieval_graph.researcher_graph.state import QueryState, ResearcherState
 from backend.utils import load_chat_model
+from backend.web_search import create_web_search_tool
 
 
 async def generate_queries(
@@ -56,20 +57,45 @@ async def generate_queries(
 async def retrieve_documents(
     state: QueryState, *, config: RunnableConfig
 ) -> dict[str, list[Document]]:
-    """Retrieve documents based on a given query.
+    """Retrieve documents based on a given query using both vector search and web search.
 
-    This function uses a retriever to fetch relevant documents for a given query.
+    This function combines results from:
+    1. Vector database search (for any ingested documents)
+    2. Web search using Tavily (for real-time information)
 
     Args:
         state (QueryState): The current state containing the query string.
         config (RunnableConfig): Configuration with the retriever used to fetch documents.
 
     Returns:
-        dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
+        dict[str, list[Document]]: A dictionary with a 'documents' key containing the combined list of retrieved documents.
     """
-    with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.query, config)
-        return {"documents": response}
+    all_documents = []
+    
+    # 1. Try vector database search first (for any ingested documents)
+    try:
+        with retrieval.make_retriever(config) as retriever:
+            vector_docs = await retriever.ainvoke(state.query, config)
+            all_documents.extend(vector_docs)
+    except Exception as e:
+        print(f"Vector search failed for query '{state.query}': {str(e)}")
+    
+    # 2. Perform web search using Tavily
+    try:
+        web_search = create_web_search_tool()
+        web_docs = web_search.search(
+            query=state.query,
+            max_results=5,
+            search_depth="advanced",
+            include_answer=True,
+            include_raw_content=False,
+            include_images=False
+        )
+        all_documents.extend(web_docs)
+    except Exception as e:
+        print(f"Web search failed for query '{state.query}': {str(e)}")
+    
+    return {"documents": all_documents}
 
 
 def retrieve_in_parallel(state: ResearcherState) -> list[Send]:

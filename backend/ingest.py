@@ -14,7 +14,6 @@ from supabase import create_client
 
 from backend.constants import SUPABASE_EMBEDDINGS_TABLE, SUPABASE_MATCH_FUNCTION
 from backend.embeddings import get_embeddings_model
-from backend.parser import langchain_docs_extractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,50 +40,6 @@ def metadata_extractor(
     }
 
 
-def load_langchain_docs():
-    return SitemapLoader(
-        "https://python.langchain.com/sitemap.xml",
-        filter_urls=["https://python.langchain.com/"],
-        parsing_function=langchain_docs_extractor,
-        default_parser="lxml",
-        bs_kwargs={
-            "parse_only": SoupStrainer(
-                name=("article", "title", "html", "lang", "content")
-            ),
-        },
-        meta_function=metadata_extractor,
-    ).load()
-
-
-def load_langgraph_docs():
-    return SitemapLoader(
-        "https://langchain-ai.github.io/langgraph/sitemap.xml",
-        parsing_function=simple_extractor,
-        default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title"))},
-        meta_function=lambda meta, soup: metadata_extractor(
-            meta, soup, title_suffix=" | 🦜🕸️LangGraph"
-        ),
-    ).load()
-
-
-def load_langsmith_docs():
-    return RecursiveUrlLoader(
-        url="https://docs.smith.langchain.com/",
-        max_depth=8,
-        extractor=simple_extractor,
-        prevent_outside=True,
-        use_async=True,
-        timeout=600,
-        # Drop trailing / to avoid duplicate pages.
-        link_regex=(
-            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?:[\#'\"]|\/[\#'\"])"
-        ),
-        check_response_status=True,
-    ).load()
-
-
 def simple_extractor(html: str | BeautifulSoup) -> str:
     if isinstance(html, str):
         soup = BeautifulSoup(html, "lxml")
@@ -97,25 +52,18 @@ def simple_extractor(html: str | BeautifulSoup) -> str:
     return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
 
-def load_api_docs():
-    return RecursiveUrlLoader(
-        url="https://api.python.langchain.com/en/latest/",
-        max_depth=8,
-        extractor=simple_extractor,
-        prevent_outside=True,
-        use_async=True,
-        timeout=600,
-        # Drop trailing / to avoid duplicate pages.
-        link_regex=(
-            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?:[\#'\"]|\/[\#'\"])"
-        ),
-        check_response_status=True,
-        exclude_dirs=(
-            "https://api.python.langchain.com/en/latest/_sources",
-            "https://api.python.langchain.com/en/latest/_modules",
-        ),
-    ).load()
+def load_custom_docs():
+    """Load custom documentation sources.
+    
+    Replace this function with your own document sources.
+    For example, you could load from:
+    - Your company's documentation
+    - Product manuals
+    - Knowledge base articles
+    - etc.
+    """
+    # Example: Return empty list for now, or add your custom document sources
+    return []
 
 
 def ingest_docs():
@@ -143,21 +91,10 @@ def ingest_docs():
     )
     record_manager.create_schema()
 
-    docs_from_documentation = load_langchain_docs()
-    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-    docs_from_api = load_api_docs()
-    logger.info(f"Loaded {len(docs_from_api)} docs from API")
-    docs_from_langsmith = load_langsmith_docs()
-    logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-    docs_from_langgraph = load_langgraph_docs()
-    logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+    docs_from_custom = load_custom_docs()
+    logger.info(f"Loaded {len(docs_from_custom)} docs from custom sources")
 
-    docs_transformed = text_splitter.split_documents(
-        docs_from_documentation
-        + docs_from_api
-        + docs_from_langsmith
-        + docs_from_langgraph
-    )
+    docs_transformed = text_splitter.split_documents(docs_from_custom)
     docs_transformed = [
         doc for doc in docs_transformed if len(doc.page_content) > 10
     ]
