@@ -49,10 +49,10 @@ class BaseConfiguration:
     )
 
     retriever_provider: Annotated[
-        Literal["weaviate"],
+        Literal["supabase"],
         {"__template_metadata__": {"kind": "retriever"}},
     ] = field(
-        default="weaviate",
+        default="supabase",
         metadata={"description": "The vector store provider to use for retrieval."},
     )
 

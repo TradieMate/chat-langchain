@@ -1,18 +1,18 @@
-"""Load html from files, clean up, split, ingest into Weaviate."""
+"""Load html from files, clean up, split, ingest into Supabase."""
 import logging
 import os
 import re
 from typing import Optional
 
-import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_weaviate import WeaviateVectorStore
+from langchain_community.vectorstores import SupabaseVectorStore
+from supabase import create_client
 
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME
+from backend.constants import SUPABASE_EMBEDDINGS_TABLE, SUPABASE_MATCH_FUNCTION
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
 
@@ -119,77 +119,72 @@ def load_api_docs():
 
 
 def ingest_docs():
-    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+    # Supabase configuration
+    supabase_url = os.environ["SUPABASE_URL"]
+    supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    with weaviate.connect_to_weaviate_cloud(
-        cluster_url=WEAVIATE_URL,
-        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
-        skip_init_checks=True,
-    ) as weaviate_client:
-        vectorstore = WeaviateVectorStore(
-            client=weaviate_client,
-            index_name=WEAVIATE_DOCS_INDEX_NAME,
-            text_key="text",
-            embedding=embedding,
-            attributes=["source", "title"],
-        )
+    # Create Supabase client (replaces weaviate client)
+    client = create_client(supabase_url, supabase_key)
 
-        record_manager = SQLRecordManager(
-            f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-        )
-        record_manager.create_schema()
+    # Create vector store (replaces Weaviate vectorstore)
+    vectorstore = SupabaseVectorStore(
+        client=client,
+        embedding=embedding,
+        table_name=SUPABASE_EMBEDDINGS_TABLE,
+        query_name=SUPABASE_MATCH_FUNCTION,
+    )
 
-        docs_from_documentation = load_langchain_docs()
-        logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-        docs_from_api = load_api_docs()
-        logger.info(f"Loaded {len(docs_from_api)} docs from API")
-        docs_from_langsmith = load_langsmith_docs()
-        logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-        docs_from_langgraph = load_langgraph_docs()
-        logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+    record_manager = SQLRecordManager(
+        "supabase/rag_documents", db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
 
-        docs_transformed = text_splitter.split_documents(
-            docs_from_documentation
-            + docs_from_api
-            + docs_from_langsmith
-            + docs_from_langgraph
-        )
-        docs_transformed = [
-            doc for doc in docs_transformed if len(doc.page_content) > 10
-        ]
+    docs_from_documentation = load_langchain_docs()
+    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+    docs_from_api = load_api_docs()
+    logger.info(f"Loaded {len(docs_from_api)} docs from API")
+    docs_from_langsmith = load_langsmith_docs()
+    logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+    docs_from_langgraph = load_langgraph_docs()
+    logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
 
-        # We try to return 'source' and 'title' metadata when querying vector store and
-        # Weaviate will error at query time if one of the attributes is missing from a
-        # retrieved document.
-        for doc in docs_transformed:
-            if "source" not in doc.metadata:
-                doc.metadata["source"] = ""
-            if "title" not in doc.metadata:
-                doc.metadata["title"] = ""
+    docs_transformed = text_splitter.split_documents(
+        docs_from_documentation
+        + docs_from_api
+        + docs_from_langsmith
+        + docs_from_langgraph
+    )
+    docs_transformed = [
+        doc for doc in docs_transformed if len(doc.page_content) > 10
+    ]
 
-        indexing_stats = index(
-            docs_transformed,
-            record_manager,
-            vectorstore,
-            cleanup="full",
-            source_id_key="source",
-            force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
-        )
+    # We try to return 'source' and 'title' metadata when querying vector store and
+    # Supabase will error at query time if one of the attributes is missing from a
+    # retrieved document.
+    for doc in docs_transformed:
+        if "source" not in doc.metadata:
+            doc.metadata["source"] = ""
+        if "title" not in doc.metadata:
+            doc.metadata["title"] = ""
 
-        logger.info(f"Indexing stats: {indexing_stats}")
-        num_vecs = (
-            weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
-            .aggregate.over_all()
-            .total_count
-        )
-        logger.info(
-            f"LangChain now has this many vectors: {num_vecs}",
-        )
+    indexing_stats = index(
+        docs_transformed,
+        record_manager,
+        vectorstore,
+        cleanup="full",
+        source_id_key="source",
+        force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
+    )
+
+    logger.info(f"Indexing stats: {indexing_stats}")
+    
+    # Note: Supabase doesn't have a direct equivalent to Weaviate's collection count
+    # You would need to query the table directly if you want to get the count
+    logger.info("Documents successfully indexed to Supabase")
 
 
 if __name__ == "__main__":
