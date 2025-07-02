@@ -6,8 +6,8 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Chat LangChain",
-  description: "Chatbot for LangChain",
+  title: "TradieMate AI",
+  description: "AI-powered assistant for tradespeople and construction professionals",
 };
 
 export default function RootLayout({

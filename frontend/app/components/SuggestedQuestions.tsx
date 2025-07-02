@@ -2,10 +2,10 @@ import { useThreadRuntime } from "@assistant-ui/react";
 import { Card, CardTitle } from "./ui/card";
 
 const suggestedQuestions = [
-  "How do I use a RecursiveUrlLoader to load content from a page?",
-  "How can I define the state schema for my LangGraph graph?",
-  "How can I run a model locally on my laptop with Ollama?",
-  "Explain RAG techniques and how LangGraph can implement them.",
+  "What are the latest trends in the construction industry?",
+  "How can I improve safety protocols on my construction site?",
+  "What tools and equipment are best for residential plumbing?",
+  "How do I calculate material costs for a home renovation project?",
 ];
 
 export function SuggestedQuestions() {

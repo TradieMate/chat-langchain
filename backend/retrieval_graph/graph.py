@@ -66,7 +66,7 @@ def route_query(
         ValueError: If an unknown router type is encountered.
     """
     _type = state.router["type"]
-    if _type == "langchain":
+    if _type == "research":
         return "create_research_plan"
     elif _type == "more-info":
         return "ask_for_more_info"
@@ -103,7 +103,7 @@ async def ask_for_more_info(
 async def respond_to_general_query(
     state: AgentState, *, config: RunnableConfig
 ) -> dict[str, list[BaseMessage]]:
-    """Generate a response to a general query not related to LangChain.
+    """Generate a response to a general query that doesn't require research.
 
     This node is called when the router classifies the query as a general question.
 
@@ -127,7 +127,7 @@ async def respond_to_general_query(
 async def create_research_plan(
     state: AgentState, *, config: RunnableConfig
 ) -> dict[str, list[str]]:
-    """Create a step-by-step research plan for answering a LangChain-related query.
+    """Create a step-by-step research plan for answering a user query.
 
     Args:
         state (AgentState): The current state of the agent, including conversation history.
@@ -230,11 +230,17 @@ async def respond(
 
 
 builder = StateGraph(AgentState, input=InputState, config_schema=AgentConfiguration)
+builder.add_node(analyze_and_route_query)
+builder.add_node(ask_for_more_info)
+builder.add_node(respond_to_general_query)
 builder.add_node(create_research_plan)
 builder.add_node(conduct_research)
 builder.add_node(respond)
 
-builder.add_edge(START, "create_research_plan")
+builder.add_edge(START, "analyze_and_route_query")
+builder.add_conditional_edges("analyze_and_route_query", route_query)
+builder.add_edge("ask_for_more_info", END)
+builder.add_edge("respond_to_general_query", END)
 builder.add_edge("create_research_plan", "conduct_research")
 builder.add_conditional_edges("conduct_research", check_finished)
 builder.add_edge("respond", END)

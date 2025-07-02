@@ -4,7 +4,7 @@ import { ThreadPrimitive } from "@assistant-ui/react";
 import { type FC } from "react";
 import NextImage from "next/image";
 
-import { ArrowDownIcon } from "lucide-react";
+import { ArrowDownIcon, Github } from "lucide-react";
 import { useAnswerHeaderToolUI } from "../AnswerHeaderToolUI";
 import { useGeneratingQuestionsUI } from "../GeneratingQuestionsToolUI";
 import { useProgressToolUI } from "../ProgressToolUI";
@@ -49,19 +49,15 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
         </ThreadPrimitive.Viewport>
       ) : null}
       <ThreadChatScrollToBottom />
+      <ViewSourceButton />
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
           <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
             <div className="flex flex-row gap-1 items-center justify-center">
-              <p className="text-xl sm:text-2xl">Chat LangChain</p>
-              <NextImage
-                src="/images/lc_logo.jpg"
-                className="rounded-3xl"
-                alt="LangChain Logo"
-                width={32}
-                height={32}
-                style={{ width: "auto", height: "auto" }}
-              />
+              <p className="text-xl sm:text-2xl">TradieMate AI</p>
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">TM</span>
+              </div>
             </div>
             <div className="mb-4 sm:mb-[24px] mt-1 sm:mt-2">
               <SelectModel />
@@ -96,5 +92,21 @@ const ThreadChatScrollToBottom: FC = () => {
         <ArrowDownIcon className="text-gray-600 hover:text-gray-800 transition-colors ease-in-out" />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
+  );
+};
+
+const ViewSourceButton: FC = () => {
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      <a
+        href="https://github.com/TradieMate/chat-langchain"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white rounded-lg border border-gray-600 transition-colors duration-200 text-sm"
+      >
+        <Github className="w-4 h-4" />
+        View Source
+      </a>
+    </div>
   );
 };

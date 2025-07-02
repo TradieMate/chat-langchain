@@ -42,7 +42,7 @@ export const ChatComposer: FC<ChatComposerProps> = (
     >
       <ComposerPrimitive.Input
         autoFocus
-        placeholder="How can I..."
+        placeholder="Ask about construction, tools, safety, or any trade-related topic..."
         rows={1}
         className="placeholder:text-gray-400 text-gray-100 max-h-40 flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
